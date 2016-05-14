@@ -115,8 +115,8 @@ makeUserList :: [User] -> String
 makeUserList [] = "Nobody else is logged in at the moment."
 makeUserList users = 
     let makeList [] = ""
-        makeList ((_, n, _):rest) = n ++ "\n" ++ (makeList rest)
-    in "\nCurrent Users\n=-=-=-=-=-=-=\n" ++ makeList users
+        makeList ((_, n, _):rest) = "* " ++ n ++ "\n" ++ (makeList rest)
+    in "\n\n-----------------\n| Current Users |\n-----------------\n\n" ++ makeList users
 
 broadcastMsg :: String -> [User] -> IO ()
 broadcastMsg msg []    = return ()
@@ -132,6 +132,7 @@ initUser :: User -> SChan Message -> IO (ThreadId, ThreadId)
 initUser user@(handle, name, userChan) serverChan = do
     hPutStrLn handle ("Welcome, " ++ name ++ 
         "!\nType ':help' for a list of available commands.")
+    doPrompt handle
     tid1 <- forkIO (userMsgLoop user)
     tid2 <- forkIO (userInputLoop user serverChan)
     return (tid1, tid2)
@@ -145,14 +146,19 @@ userMsgLoop user@(handle, name, userChan) = do
 
 userInputLoop :: User -> SChan Message -> IO ()
 userInputLoop user@(h, n, c) serverChan = do
-    doPrompt h
-    input   <- sanitizeInput h
-    message <- return (processInput user input)
-    case message of (Just (Error s)) -> do (hPutStrLn h s)
-                    (Just m)         -> do forkIO (sync (sendEvt serverChan m))
-                                           return ()
-                    otherwise        -> return ()
-    userInputLoop user serverChan
+    eof <- hIsEOF h
+    if eof then do
+        forkIO (sync (sendEvt serverChan (Request user Logout)))
+        return ()
+    else do
+        doPrompt h
+        input   <- sanitizeInput h
+        message <- return (processInput user input)
+        case message of (Just (Error s)) -> do (hPutStrLn h s); doPrompt h
+                        (Just m)         -> do forkIO (sync (sendEvt serverChan m))
+                                               return ()
+                        otherwise        -> return ()
+        userInputLoop user serverChan
 
 processInput :: User -> String -> Maybe Message
 processInput user input =
