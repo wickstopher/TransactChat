@@ -1,4 +1,4 @@
--- Data structure definitions for TransactChat
+-- TransactChat: Data structure definitions
 -- Christopher R. Wicks (wickstopher@gmail.com)
 
 module TCData where

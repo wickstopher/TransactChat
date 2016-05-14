@@ -1,3 +1,6 @@
+-- TransactChat: top level module
+-- Christopher R. Wicks (wickstopher@gmail.com)
+
 module TransactChat where
 
 import TCData

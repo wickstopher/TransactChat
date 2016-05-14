@@ -1,4 +1,4 @@
--- Transact Chat User functions
+-- Transact Chat: User functions and routines
 -- Christopher R. Wicks (wickstopher@gmail.com)
 
 module TCUser where

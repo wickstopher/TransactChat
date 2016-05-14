@@ -1,4 +1,4 @@
--- TransactChat Utility module
+-- TransactChat: Utility module
 -- Christopher R. Wicks (wickstopher@gmail.com)
 
 module TCUtils where

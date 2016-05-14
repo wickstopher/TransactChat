@@ -1,4 +1,4 @@
--- TransactChat Logging module
+-- TransactChat: Logging module
 -- Christopher R. Wicks (wickstopher@gmail.com)
 
 module TCLogging where

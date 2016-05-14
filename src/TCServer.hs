@@ -1,3 +1,6 @@
+-- TransactChat: Server functions and routines
+-- Christopher R. Wicks (wickstopher@gmail.com)
+
 module TCServer where
 
 import TCData
