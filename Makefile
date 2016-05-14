@@ -3,18 +3,21 @@
 HC   = ghc
 SRC  = src/
 BIN  = bin/
-ARGS = -i$(SRC)
+ODIR = .output/
+ARGS = -i$(SRC) -outputdir $(ODIR)
 TC   = TransactChat
 
 
-$(TC):
-	@mkdir -p bin
+$(TC): setup
 	@$(HC) $(ARGS) -main-is $(TC).main $(SRC)$(TC).hs -o $(BIN)$(TC)
 
 clean:
 	@rm -rf $(BIN)
-	@rm $(SRC)*.o
-	@rm $(SRC)*.hi
+	@rm -rf $(ODIR)
 
 run: $(TC)
 	@$(BIN)$(TC)
+
+setup:
+	@mkdir -p $(BIN)
+	@mkdir -p $(ODIR)
