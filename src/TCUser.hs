@@ -3,13 +3,11 @@
 
 module TCUser where
 
-import TCData
-import TCUtils
 import Control.Concurrent
 import Control.Concurrent.TxEvent
 import System.IO
-
-{- Main processing loops and functions for Users -}
+import TCData
+import TCUtils
 
 -- Initialize a User's processing loops and return the newly spawned ThreadIds
 initUser :: User -> SChan Message -> IO (ThreadId, ThreadId)

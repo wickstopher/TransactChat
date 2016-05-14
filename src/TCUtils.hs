@@ -3,10 +3,10 @@
 
 module TCUtils where
 
-import TCData
 import System.IO
 import Data.Char
 import Data.List.Split
+import TCData
 
 -- Create tokens from a String, splitting on spaces
 tokenize :: String -> [String]

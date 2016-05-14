@@ -3,18 +3,23 @@
 
 module TCServer where
 
+import Control.Concurrent
+import Control.Concurrent.TxEvent
+import System.IO
 import TCData
 import TCUtils
 import TCLogging
 import TCUser
-
-import Control.Concurrent
-import Control.Concurrent.TxEvent
-import System.IO
 import qualified Data.HashMap.Strict as HM
 
+-- Start up a new server and return its Message channel
+initServer :: IO (SChan Message)
+initServer = do
+    serverChan <- sync newSChan
+    forkIO (serverLoop [] HM.empty serverChan)
+    return serverChan
 
-{- Login routine for a new user -} 
+-- Login routine for a new user
 login :: Handle -> SChan Message -> IO ()
 login handle serverChan = do
     hSetBuffering handle NoBuffering
@@ -29,7 +34,7 @@ login handle serverChan = do
                         login handle serverChan
                     Success -> return ()
 
-{- Main server processing loop -}
+-- Main server processing loop
 serverLoop :: [User] -> HM.HashMap String (ThreadId, ThreadId) -> SChan Message -> IO ()
 serverLoop users tidMap serverChan = do
     message <- sync (recvEvt serverChan)
@@ -69,9 +74,6 @@ serverLoop users tidMap serverChan = do
             return (remaining, (HM.delete (getName user) tidMap), (Just message))
     makeLogMessage logmsg 
     serverLoop newUsers newMap serverChan
-
-
-{- Helper functions for the main server loop -}
 
 -- Send a login failed response to the LoginResponse channel
 loginFailed :: SChan LoginResponse -> String -> IO ThreadId

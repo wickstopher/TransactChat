@@ -3,13 +3,10 @@
 
 module TCLogging where
 
-import TCData
 import Data.Time
+import TCData
 
-{- Logging functions -}
-
--- Given a Message, construct and display an appropriate message on the 
--- server terminal
+-- Given a Message, construct and display an appropriate message on the server terminal
 makeLogMessage :: Maybe Message -> IO ()
 makeLogMessage message = case message of 
     Just (Request (_, n, _) (Login _)) -> 
