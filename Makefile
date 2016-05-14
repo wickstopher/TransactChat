@@ -11,3 +11,4 @@ clean:
 
 run: TransactChat
 	@bin/TransactChat
+

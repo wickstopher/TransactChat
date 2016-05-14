@@ -7,6 +7,7 @@ import Data.Char
 import Data.List.Split
 import Data.Time
 import Network.Socket
+import System.Environment
 import System.IO
 import qualified Data.HashMap.Strict as HM
 
@@ -28,14 +29,20 @@ getHandle (h, _, _) = h
 
 main :: IO ()
 main = do
+    args <- getArgs
+    port <- return (processArgs args)
     sock <- socket AF_INET Stream 0
     setSocketOption sock ReuseAddr 1
-    bind sock (SockAddrInet 4242 iNADDR_ANY)
+    bind sock (SockAddrInet port iNADDR_ANY)
     listen sock 5
     serverChan <- sync newSChan
     forkIO (serverLoop [] HM.empty serverChan)
-    logMessage "TransactChat server initialized on port 4242"
+    logMessage ("TransactChat server initialized on port " ++ (show port))
     socketLoop sock serverChan
+
+processArgs :: [String] -> PortNumber
+processArgs (s:[]) = fromIntegral ((read s)::Int)
+processArgs _      = 4242
 
 socketLoop :: Socket -> SChan Message -> IO ()
 socketLoop sock serverChan = do 
