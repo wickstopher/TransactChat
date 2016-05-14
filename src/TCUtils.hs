@@ -56,4 +56,4 @@ validName name = ((length name) <= 10) && not (containsSpace name)
 
 -- Test for whether a String contains space characters
 containsSpace :: String -> Bool
-containsSpace str = (length (filter (/= ' ') str)) /= (length str) 
+containsSpace str = (length (filter (/= ' ') str)) /= (length str)
