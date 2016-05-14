@@ -21,12 +21,6 @@ data LoginResponse      = Success | Failed String
 data UserMessage        = Msg String 
 type User               = (Handle, String, SChan UserMessage)
 
-getName :: User -> String
-getName (_, n, _) = n
-
-getHandle :: User -> Handle
-getHandle (h, _, _) = h
-
 main :: IO ()
 main = do
     args <- getArgs
@@ -40,10 +34,12 @@ main = do
     logMessage ("TransactChat server initialized on port " ++ (show port))
     socketLoop sock serverChan
 
+-- Process command-line arguments.
 processArgs :: [String] -> PortNumber
 processArgs (s:[]) = fromIntegral ((read s)::Int)
 processArgs _      = 4242
 
+{- Listen for new connections and initialize login routines -}
 socketLoop :: Socket -> SChan Message -> IO ()
 socketLoop sock serverChan = do 
     (uSock, _) <- accept sock
@@ -51,6 +47,7 @@ socketLoop sock serverChan = do
     forkIO (login uHandle serverChan)
     socketLoop sock serverChan
 
+{- Login routine for a new user -} 
 login :: Handle -> SChan Message -> IO ()
 login handle serverChan = do
     hSetBuffering handle NoBuffering
@@ -65,6 +62,7 @@ login handle serverChan = do
                         login handle serverChan
                     Success -> return ()
 
+{- Main server processing loop -}
 serverLoop :: [User] -> HM.HashMap String (ThreadId, ThreadId) -> SChan Message -> IO ()
 serverLoop users tidMap serverChan = do
     message <- sync (recvEvt serverChan)
@@ -105,36 +103,14 @@ serverLoop users tidMap serverChan = do
     makeLogMessage logmsg 
     serverLoop newUsers newMap serverChan
 
-makeLogMessage :: Maybe Message -> IO ()
-makeLogMessage message = case message of 
-    Just (Request (_, n, _) (Login _)) -> 
-        logMessage ("User " ++ n ++ " has logged in")
-    Just (Request (_, n, _) Logout)    -> 
-        logMessage ("User " ++ n ++ " has logged out")
-    otherwise -> return ()
 
-logMessage :: String -> IO ()
-logMessage msg = do
-    utcTime <- getCurrentTime
-    time    <- utcToLocalZonedTime utcTime
-    putStrLn ("[" ++ (show time) ++ "] " ++ msg)
+{- Helper functions for the main server loop -}
 
+-- Send a login failed response to the LoginResponse channel
 loginFailed :: SChan LoginResponse -> String -> IO ThreadId
 loginFailed loginChan msg = forkIO (sync (sendEvt loginChan (Failed msg)))
 
-userLoggedIn :: String -> [User] -> Bool
-userLoggedIn _ []     = False
-userLoggedIn s (u@(_, n, _):rest)
-    | s == n    = True
-    | otherwise = userLoggedIn s rest
-
-validName :: String -> Bool
-validName [] = False
-validName name = ((length name) <= 10) && not (containsSpace name)
-
-containsSpace :: String -> Bool
-containsSpace str = (length (filter (/= ' ') str)) /= (length str) 
-
+-- Construct a displayable String containing the list of logged-in Users
 makeUserList :: [User] -> String
 makeUserList [] = "Nobody else is logged in at the moment."
 makeUserList users = 
@@ -142,16 +118,10 @@ makeUserList users =
         makeList ((_, n, _):rest) = "* " ++ n ++ "\n" ++ (makeList rest)
     in "\n\n-----------------\n| Current Users |\n-----------------\n\n" ++ makeList users
 
-broadcastMsg :: String -> [User] -> IO ()
-broadcastMsg msg []    = return ()
-broadcastMsg msg users = do
-    msgUser msg (head users)
-    broadcastMsg msg (tail users)
 
-msgUser :: String -> User -> IO ThreadId
-msgUser msg (_, _, userChan) = 
-    forkIO (sync (sendEvt userChan (Msg msg)))
+{- Main processing loops and functions for Users -}
 
+-- Initialize a User's processing loops and return the newly spawned ThreadIds
 initUser :: User -> SChan Message -> IO (ThreadId, ThreadId)
 initUser user@(handle, name, userChan) serverChan = do
     hPutStrLn handle ("Welcome, " ++ name ++ 
@@ -161,6 +131,7 @@ initUser user@(handle, name, userChan) serverChan = do
     tid2 <- forkIO (userInputLoop user serverChan)
     return (tid1, tid2)
 
+-- Handles the receipt of messages on a User's channel
 userMsgLoop :: User -> IO ()
 userMsgLoop user@(handle, name, userChan) = do  
     msg <- sync (recvEvt userChan)
@@ -168,6 +139,7 @@ userMsgLoop user@(handle, name, userChan) = do
     doPrompt handle
     userMsgLoop user
 
+-- Process User input and send appropriate requests to the server's channel
 userInputLoop :: User -> SChan Message -> IO ()
 userInputLoop user@(h, n, c) serverChan = do
     eof <- hIsEOF h
@@ -184,6 +156,11 @@ userInputLoop user@(h, n, c) serverChan = do
                         otherwise        -> return ()
         userInputLoop user serverChan
 
+-- Send a prompt to the Handle
+doPrompt :: Handle -> IO ()
+doPrompt handle = hPutStr handle "> "
+
+-- Convert a line of user input into an appropriate Message.
 processInput :: User -> String -> Maybe Message
 processInput user input =
     let tokens = (tokenize input) in
@@ -203,9 +180,68 @@ processInput user input =
         else
             Just (Error "Unknown command")
 
+-- Help text to display to the user when the :help command is entered
+helpText :: String
+helpText =
+    "\n  :help        Display this help text.\n" ++
+    "  :quit        Exit the chat server.\n" ++
+    "  :pm <user>   Send a private message to <user>\n" ++
+    "  :who         Display a list of currently logged-in users\n\n" ++
+    "  To chat, simply type your message at the prompt and it will be\n" ++
+    "  broadcast to all logged-in users.\n"
+
+
+{- Utility functions for dealing with User/[User] -}
+
+-- Broadcast a message to all Users in the list
+broadcastMsg :: String -> [User] -> IO ()
+broadcastMsg msg []    = return ()
+broadcastMsg msg users = do
+    msgUser msg (head users)
+    broadcastMsg msg (tail users)
+
+-- Send a message to the User
+msgUser :: String -> User -> IO ThreadId
+msgUser msg (_, _, userChan) = 
+    forkIO (sync (sendEvt userChan (Msg msg)))
+
+
+-- return a User's name
+getName :: User -> String
+getName (_, n, _) = n
+
+-- return a User's Handle
+getHandle :: User -> Handle
+getHandle (h, _, _) = h
+
+-- return the User from the list whose name matches the input String
+getUser :: String -> [User] -> Maybe User
+getUser userName [] = Nothing
+getUser userName (u@(_, n, _):rest) 
+    | userName == n = Just u
+    | otherwise     = getUser userName rest
+
+-- Filter the user whose name matches the input String from the list
+filterSelf :: User -> [User] -> [User]
+filterSelf (_, n1, _) = filter (\(_, n2, _) -> n1 /= n2 )
+
+-- Return whether or not a User whose name matches the input String is
+-- present in the list of Users
+userLoggedIn :: String -> [User] -> Bool
+userLoggedIn _ []     = False
+userLoggedIn s (u@(_, n, _):rest)
+    | s == n    = True
+    | otherwise = userLoggedIn s rest
+
+
+{- Utility functions for dealing with user I/O -}
+
+-- Create tokens from a String, splitting on spaces
 tokenize :: String -> [String]
 tokenize = filter (not . null) . splitOn " "
 
+-- Strip the first token, including all leading and trailing spaces, from
+-- the String
 stripFirst :: String -> String
 stripFirst []     = []
 stripFirst str    = let
@@ -225,34 +261,46 @@ stripFirst str    = let
         | otherwise = state3 xs 
     in state1 str
 
+-- Strip the first n tokens, including all leading and trailing spaces,
+-- from the String
 stripN :: Int -> String -> String
 stripN 0 s = s
 stripN n s = stripN (n-1) (stripFirst s)
 
-getUser :: String -> [User] -> Maybe User
-getUser userName [] = Nothing
-getUser userName (u@(_, n, _):rest) 
-    | userName == n = Just u
-    | otherwise     = getUser userName rest
-
-filterSelf :: User -> [User] -> [User]
-filterSelf (_, n1, _) = filter (\(_, n2, _) -> n1 /= n2 )
-
+-- Request and sanitize a line of input from the given Handle
 sanitizeInput :: Handle -> IO String
 sanitizeInput handle = do
     input <- hGetLine handle
     return (sanitize input)
 
+-- sanitize a String (filter out unprintable characters)
 sanitize :: String -> String
 sanitize = filter (\s -> (isPrint s) || (s == '\t'))
 
-doPrompt handle = hPutStr handle "> "
+-- Test for a valid username
+validName :: String -> Bool
+validName [] = False
+validName name = ((length name) <= 10) && not (containsSpace name)
 
-helpText :: String
-helpText =
-    "\n  :help        Display this help text.\n" ++
-    "  :quit        Exit the chat server.\n" ++
-    "  :pm <user>   Send a private message to <user>\n" ++
-    "  :who         Display a list of currently logged-in users\n\n" ++
-    "  To chat, simply type your message at the prompt and it will be\n" ++
-    "  broadcast to all logged-in users.\n"
+-- Test for whether a String contains space characters
+containsSpace :: String -> Bool
+containsSpace str = (length (filter (/= ' ') str)) /= (length str) 
+
+{- Logging functions -}
+
+-- Given a Message, construct and display an appropriate message on the 
+-- server terminal
+makeLogMessage :: Maybe Message -> IO ()
+makeLogMessage message = case message of 
+    Just (Request (_, n, _) (Login _)) -> 
+        logMessage ("User " ++ n ++ " has logged in")
+    Just (Request (_, n, _) Logout)    -> 
+        logMessage ("User " ++ n ++ " has logged out")
+    otherwise -> return ()
+
+-- Display a log message on the server terminal
+logMessage :: String -> IO ()
+logMessage msg = do
+    utcTime <- getCurrentTime
+    time    <- utcToLocalZonedTime utcTime
+    putStrLn ("[" ++ (show time) ++ "] " ++ msg)
