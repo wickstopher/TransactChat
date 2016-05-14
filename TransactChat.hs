@@ -3,6 +3,7 @@ module TransactChat where
 import Control.Concurrent
 import Control.Concurrent.TxEvent
 import Control.Exception
+import Data.Char
 import Data.List.Split
 import Network.Socket
 import System.IO
@@ -212,21 +213,15 @@ getUser userName (u@(_, n, _):rest)
     | otherwise     = getUser userName rest
 
 filterSelf :: User -> [User] -> [User]
-filterSelf user [] = []
-filterSelf u1@(_, n1, _) (u2@(_, n2, _):rest)
-    | n1 == n2  = rest
-    | otherwise = u2:(filterSelf u1 rest)
+filterSelf (_, n1, _) = filter (\(_, n2, _) -> n1 /= n2 )
 
 sanitizeInput :: Handle -> IO String
 sanitizeInput handle = do
     input <- hGetLine handle
     return (sanitize input)
 
-badChars :: [Char]
-badChars = ['\r']
-
 sanitize :: String -> String
-sanitize = filter (\x -> not (elem x badChars))
+sanitize = filter (\s -> (isPrint s) || (s == '\t'))
 
 doPrompt handle = hPutStr handle "> "
 
