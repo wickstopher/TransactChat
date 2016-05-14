@@ -5,6 +5,7 @@ import Control.Concurrent.TxEvent
 import Control.Exception
 import Data.Char
 import Data.List.Split
+import Data.Time
 import Network.Socket
 import System.IO
 import qualified Data.HashMap.Strict as HM
@@ -33,6 +34,7 @@ main = do
     listen sock 5
     serverChan <- sync newSChan
     forkIO (serverLoop [] HM.empty serverChan)
+    logMessage "TransactChat server initialized on port 4242"
     socketLoop sock serverChan
 
 socketLoop :: Socket -> SChan Message -> IO ()
@@ -60,41 +62,55 @@ serverLoop :: [User] -> HM.HashMap String (ThreadId, ThreadId) -> SChan Message 
 serverLoop users tidMap serverChan = do
     message <- sync (recvEvt serverChan)
     
-    (newUsers, newMap) <- case message of 
+    (newUsers, newMap, logmsg) <- case message of 
         Request user (ChatMessage msg) -> do 
             forkIO (broadcastMsg ((getName user) ++ ": " ++ msg) users)
-            return (users, tidMap)
+            return (users, tidMap, Nothing)
         Request user (PrivateMessage uName msg) -> do
             case (getUser uName users) of
                 (Just u) -> msgUser ((getName user) ++ " [private]: " ++ msg) u
                 Nothing  -> msgUser ("User " ++ uName ++ " not logged in") user
-            return (users, tidMap)
+            return (users, tidMap, Nothing)
         Request user Who -> do
             msgUser (makeUserList (filterSelf user users)) user
-            return (users, tidMap)
+            return (users, tidMap, Nothing)
         Request user (Login loginChan) ->
             if not (validName (getName user)) then do
                 loginFailed loginChan ("That is not a valid username.\n" ++
                     "Names must be between 1 and 10 characters and contain no spaces.")
-                return (users, tidMap)
+                return (users, tidMap, Nothing)
             else if (userLoggedIn (getName user) users) then do
                 loginFailed loginChan "A user with that name is already logged in!"
-                return (users, tidMap)
+                return (users, tidMap, Nothing)
             else do
                 forkIO (sync (sendEvt loginChan Success))
                 threadIds <- initUser user serverChan
                 forkIO (broadcastMsg ("*** " ++ (getName user) 
                             ++ " has entered chat! ***") users)
-                return ((user:users), (HM.insert (getName user) threadIds tidMap))
+                return ((user:users), (HM.insert (getName user) threadIds tidMap), (Just message))
         Request user Logout -> do
             remaining    <- return (filterSelf user users)
             (tid1, tid2) <- return (tidMap HM.! (getName user))
             forkIO (do killThread tid1; killThread tid2; hClose (getHandle user))
             forkIO (broadcastMsg ("*** " ++ (getName user) 
                         ++ " has departed. ***") remaining)
-            return (remaining, (HM.delete (getName user) tidMap))
-    
+            return (remaining, (HM.delete (getName user) tidMap), (Just message))
+    makeLogMessage logmsg 
     serverLoop newUsers newMap serverChan
+
+makeLogMessage :: Maybe Message -> IO ()
+makeLogMessage message = case message of 
+    Just (Request (_, n, _) (Login _)) -> 
+        logMessage ("User " ++ n ++ " has logged in")
+    Just (Request (_, n, _) Logout)    -> 
+        logMessage ("User " ++ n ++ " has logged out")
+    otherwise -> return ()
+
+logMessage :: String -> IO ()
+logMessage msg = do
+    utcTime <- getCurrentTime
+    time    <- utcToLocalZonedTime utcTime
+    putStrLn ("[" ++ (show time) ++ "] " ++ msg)
 
 loginFailed :: SChan LoginResponse -> String -> IO ThreadId
 loginFailed loginChan msg = forkIO (sync (sendEvt loginChan (Failed msg)))
