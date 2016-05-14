@@ -35,13 +35,13 @@ userInputLoop user@(h, n, c) serverChan = do
         forkIO (sync (sendEvt serverChan (Request user Logout)))
         return ()
     else do
-        doPrompt h
         input   <- sanitizeInput h
         message <- return (processInput user input)
-        case message of (Just (Error s)) -> do (hPutStrLn h s); doPrompt h
+        case message of (Just (Error s)) -> do (hPutStrLn h s)
                         (Just m)         -> do forkIO (sync (sendEvt serverChan m))
                                                return ()
                         otherwise        -> return ()
+        doPrompt h
         userInputLoop user serverChan
 
 -- Send a prompt to the Handle
