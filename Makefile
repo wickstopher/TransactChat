@@ -1,14 +1,20 @@
 # Makefile for TransactChat
 
-TransactChat:
+HC   = ghc
+SRC  = src/
+BIN  = bin/
+ARGS = -i$(SRC)
+TC   = TransactChat
+
+
+$(TC):
 	@mkdir -p bin
-	@ghc -main-is TransactChat.main src/TransactChat.hs  -o bin/TransactChat
+	@$(HC) $(ARGS) -main-is $(TC).main $(SRC)$(TC).hs -o $(BIN)$(TC)
 
 clean:
-	@rm bin/TransactChat
-	@rm src/*.o
-	@rm src/*.hi
+	@rm -rf $(BIN)
+	@rm $(SRC)*.o
+	@rm $(SRC)*.hi
 
-run: TransactChat
-	@bin/TransactChat
-
+run: $(TC)
+	@$(BIN)$(TC)
