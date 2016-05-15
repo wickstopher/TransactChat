@@ -42,18 +42,18 @@ stripN n s = stripN (n-1) (stripFirst s)
 -- Request and sanitize a line of input from the given Handle
 sanitizeInput :: Handle -> IO String
 sanitizeInput handle = do
-    input <- hGetLine handle
-    return (sanitize input)
+    input <- (hGetLine handle)
+    return (sanitize (init input))
 
--- sanitize a String (filter out unprintable characters)
+-- sanitize a String: only allow alpha-numeric and spaces chars
 sanitize :: String -> String
-sanitize = filter (\s -> (isPrint s) || (s == '\t'))
+sanitize = filter (\s -> (isAscii s) && (isPrint s || s == '\t'))
 
 -- Test for a valid username
 validName :: String -> Bool
 validName [] = False
-validName name = ((length name) <= 10) && not (containsSpace name)
+validName name = ((length name) <= 10) && not (containsNonAlpha name)
 
 -- Test for whether a String contains space characters
-containsSpace :: String -> Bool
-containsSpace str = (length (filter (/= ' ') str)) /= (length str)
+containsNonAlpha :: String -> Bool
+containsNonAlpha str = (length (filter isAlphaNum str)) /= (length str)
