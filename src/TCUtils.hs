@@ -43,7 +43,7 @@ stripN n s = stripN (n-1) (stripFirst s)
 sanitizeInput :: Handle -> IO String
 sanitizeInput handle = do
     input <- (hGetLine handle)
-    return (sanitize (init input))
+    return (sanitize input)
 
 -- sanitize a String: only allow alpha-numeric and spaces chars
 sanitize :: String -> String
