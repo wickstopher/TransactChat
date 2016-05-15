@@ -12,4 +12,18 @@ __TransactChat: A simple chat server written in Haskell with transactional event
 
 *Installing tx-events:*
     
-    * cabal install reqs/tx-events-0.4.tar.gz
+    cabal install reqs/tx-events-0.4.tar.gz
+
+
+*Running the application:*
+
+    make
+    bin/TransactChat <port number>
+
+
+*Code Reference:*
+
+The original basis for the socket handling code can be found at the following 
+example on the HaskellWiki:
+    
+    https://wiki.haskell.org/Implement_a_chat_server
